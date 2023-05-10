@@ -21,7 +21,7 @@ namespace Oxide.Plugins
         // Plugin Metadata
         private const string _PluginName = "EasyVoteLite";
         private const string _PluginAuthor = "BippyMiester";
-        private const string _PluginVersion = "3.0.8";
+        private const string _PluginVersion = "3.0.9";
         private const string _PluginDescription = "Voting System";
         
         // Changelog
@@ -38,6 +38,11 @@ namespace Oxide.Plugins
          * 
          * 3.0.8
          * Fixed Log Files not outputing to the right log file
+         * 
+         * 3.0.9
+         * Added option to get rid of the please wait message when checking voting status
+         * Completely rewrote how the claim and check voting status is handled. Removed not needed checks and loops.
+         * Removed duplicate "Enable Debug" entry in the config
          */
         
         // Misc Variables
@@ -308,45 +313,64 @@ namespace Oxide.Plugins
 
         private void CheckVotingStatus(BasePlayer player)
         {
+            _Debug("------------------------------");
+            _Debug("Method: CheckVotingStatus");
+            _Debug($"Player: {player.displayName}/{player.UserIDString}");
             var timeout = 5000;
-            player.ChatMessage(_lang("PleaseWait", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix]));
-            // Loop through the vote sites api list
-            foreach (KeyValuePair<string, Dictionary<string, string>> kvp in _config.VoteSitesAPI)
+            if (_config.NotificationSettings[ConfigDefaultKeys.PleaseWaitMessage].ToBool())
             {
-                // Loop through all the servers
-                foreach (KeyValuePair<string, Dictionary<string, string>> serverskvp in _config.Servers)
+                player.ChatMessage(_lang("PleaseWait", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix]));
+            }
+            // Loop through all the Servers
+            foreach (KeyValuePair<string, Dictionary<string, string>> ServersKVP in _config.Servers)
+            {
+                _Debug($"ServersKVP.Key: {ServersKVP.Key.ToString()}");
+                // Loop through all the ID's and Keys for each Voting Site
+                foreach (KeyValuePair<string, string> IDKeys in ServersKVP.Value)
                 {
-                    // Loop through all the ID's and Keys
-                    foreach (KeyValuePair<string, string> serveridkeys in serverskvp.Value)
+                    _Debug($"IDKeys.Key: {IDKeys.Key.ToString().ToLower()}");
+                    _Debug($"IDKeys.Value: {IDKeys.Value.ToString()}");
+                    // Enforce the three voting websites
+                    if (IDKeys.Key.ToString().ToLower() != "rust-servers.net" && IDKeys.Key.ToString().ToLower() != "bestservers.com" && IDKeys.Key.ToString().ToLower() != "rustservers.gg")
                     {
-                        if(serveridkeys.Key != "Rust-Servers.net" || serveridkeys.Key != "Rustservers.gg" || serveridkeys.Key != "BestServers.com")
-                        {
-                            ConsoleError("Looks like you are trying to use an unsupported Voting website. Please use EasyVotePro!");
-                            return; 
-                        }
-                        // If the key of the api is equal to the server key
-                        if (Equals(kvp.Key, serveridkeys.Key))
-                        {
-                            string[] idkey = serveridkeys.Value.Split(':');
-                            string url = "";
-                            if (kvp.Value[ConfigDefaultKeys.apiUsername] == "true")
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiStatus], idkey[1], player.displayName);
-                            } else 
-                            if (serveridkeys.Key == "Rustservers.gg")
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiStatus], idkey[1], player.UserIDString, idkey[0]);
-                            }
-                            else
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiStatus], idkey[1], player.UserIDString);
-                            }
-                            
-                            webrequest.Enqueue(url, null,
-                                (code, response) => HandleStatusWebRequestCallback(code, response, player, url, serverskvp.Key, serveridkeys.Key), this,
-                                RequestMethod.GET, null, timeout);
-                        }
+                        ConsoleError($"Looks like you are trying to use an unsupported Voting website {IDKeys.Key.ToString().ToLower()}. Please use EasyVotePro!");
+                        continue;
                     }
+                    // Check if the API key is present
+                    if (!_config.VoteSitesAPI.ContainsKey(IDKeys.Key))
+                    {
+                        ConsoleWarn($"The voting website {IDKeys.Key} does not exist in the API section of the config!");
+                        continue;
+                    }
+                    var APILink = _config.VoteSitesAPI[IDKeys.Key.ToString()][ConfigDefaultKeys.apiStatus];
+                    _Debug($"Check Status API Link: {APILink.ToString()}");
+                    var usernameAPIEnabled = _config.VoteSitesAPI[IDKeys.Key.ToString()][ConfigDefaultKeys.apiUsername];
+                    _Debug($"API Username Enabled: {usernameAPIEnabled}");
+                    string[] IDKey = IDKeys.Value.Split(':');
+                    _Debug($"ID: {IDKey[0]}");
+                    _Debug($"Key/Token: {IDKey[1]}");
+
+                    string formattedURL = "";
+                    if (usernameAPIEnabled.ToBool())
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.displayName);
+                    }
+                    else
+                    if (IDKeys.Key.ToString().ToLower() == "rustservers.gg")
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.UserIDString, IDKey[0]);
+                    }
+                    else
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.UserIDString);
+                    }
+                    _Debug($"Formatted URL: {formattedURL}");
+
+                    webrequest.Enqueue(formattedURL, null,
+                        (code, response) => HandleStatusWebRequestCallback(code, response, player, formattedURL, ServersKVP.Key.ToString(), IDKeys.Key.ToString()), this,
+                        RequestMethod.GET, null, timeout);
+
+                    _Debug("------------------------------");
                 }
             }
         }
@@ -434,44 +458,68 @@ namespace Oxide.Plugins
         {
             // Check if the player data is present in the data file
             CheckIfPlayerDataExists(player);
-            
+
+            _Debug("------------------------------");
+            _Debug("Method: ClaimChatCommand");
+            _Debug($"Player: {player.displayName}/{player.UserIDString}");
             var timeout = 5000;
-            player.ChatMessage(_lang("PleaseWait", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix]));
-            // Loop through the vote sites api list
-            foreach (KeyValuePair<string, Dictionary<string, string>> kvp in _config.VoteSitesAPI)
+            if (_config.NotificationSettings[ConfigDefaultKeys.PleaseWaitMessage].ToBool())
             {
-                // Loop through all the servers
-                foreach (KeyValuePair<string, Dictionary<string, string>> serverskvp in _config.Servers)
+                player.ChatMessage(_lang("PleaseWait", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix]));
+            }
+            // Loop through all the Servers
+            foreach (KeyValuePair<string, Dictionary<string, string>> ServersKVP in _config.Servers)
+            {
+                _Debug($"ServersKVP.Key: {ServersKVP.Key.ToString()}");
+                // Loop through all the ID's and Keys for each Voting Site
+                foreach (KeyValuePair<string, string> IDKeys in ServersKVP.Value)
                 {
-                    // Loop through all the ID's and Keys
-                    foreach (KeyValuePair<string, string> serveridkeys in serverskvp.Value)
+                    _Debug($"IDKeys.Key: {IDKeys.Key.ToString().ToLower()}");
+                    _Debug($"IDKeys.Value: {IDKeys.Value.ToString()}");
+                    // Enforce the three voting websites
+                    if (IDKeys.Key.ToString().ToLower() != "rust-servers.net" && IDKeys.Key.ToString().ToLower() != "bestservers.com" && IDKeys.Key.ToString().ToLower() != "rustservers.gg")
                     {
-                        // If the key of the api is equal to the server key
-                        if (Equals(kvp.Key, serveridkeys.Key))
-                        {
-                            string[] idkey = serveridkeys.Value.Split(':');
-                            string url = "";
-                            if (kvp.Value[ConfigDefaultKeys.apiUsername] == "true")
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiClaim], idkey[1], player.displayName);
-                            } else 
-                            if (serveridkeys.Key == "Rustservers.gg")
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiClaim], idkey[1], player.UserIDString, idkey[0]);
-                            }
-                            else
-                            {
-                                url = string.Format(kvp.Value[ConfigDefaultKeys.apiClaim], idkey[1], player.UserIDString);
-                            }
-                            
-                            webrequest.Enqueue(url, null,
-                                (code, response) => HandleClaimWebRequestCallback(code, response, player, url, serverskvp.Key, serveridkeys.Key), this,
-                                RequestMethod.GET, null, timeout);
-                        }
+                        ConsoleError($"Looks like you are trying to use an unsupported Voting website {IDKeys.Key.ToString().ToLower()}. Please use EasyVotePro!");
+                        continue;
                     }
+                    // Check if the API key is present
+                    if (!_config.VoteSitesAPI.ContainsKey(IDKeys.Key))
+                    {
+                        ConsoleWarn($"The voting website {IDKeys.Key} does not exist in the API section of the config!");
+                        continue;
+                    }
+                    var APILink = _config.VoteSitesAPI[IDKeys.Key.ToString()][ConfigDefaultKeys.apiClaim];
+                    _Debug($"Check Status API Link: {APILink.ToString()}");
+                    var usernameAPIEnabled = _config.VoteSitesAPI[IDKeys.Key.ToString()][ConfigDefaultKeys.apiUsername];
+                    _Debug($"API Username Enabled: {usernameAPIEnabled}");
+                    string[] IDKey = IDKeys.Value.Split(':');
+                    _Debug($"ID: {IDKey[0]}");
+                    _Debug($"Key/Token: {IDKey[1]}");
+
+                    string formattedURL = "";
+                    if (usernameAPIEnabled.ToBool())
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.displayName);
+                    }
+                    else
+                    if (IDKeys.Key.ToString().ToLower() == "rustservers.gg")
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.UserIDString, IDKey[0]);
+                    }
+                    else
+                    {
+                        formattedURL = string.Format(APILink, IDKey[1], player.UserIDString);
+                    }
+                    _Debug($"Formatted URL: {formattedURL}");
+
+                    webrequest.Enqueue(formattedURL, null,
+                        (code, response) => HandleClaimWebRequestCallback(code, response, player, formattedURL, ServersKVP.Key.ToString(), IDKeys.Key.ToString()), this,
+                        RequestMethod.GET, null, timeout);
+
+                    _Debug("------------------------------");
                 }
             }
-            
+
             // Wait until all web requests are done and then send a message
             timer.Once(5f, () =>
             {
@@ -662,7 +710,6 @@ namespace Oxide.Plugins
             };
             _config.PluginSettings = new Dictionary<string, string>
             {
-                {ConfigDefaultKeys.DebugEnabled, "false"},
                 {ConfigDefaultKeys.LogEnabled, "true"},
                 {ConfigDefaultKeys.ClearRewardsOnWipe, "true"},
                 {ConfigDefaultKeys.RewardIsCumulative, "false"},
@@ -671,6 +718,7 @@ namespace Oxide.Plugins
             _config.NotificationSettings = new Dictionary<string, string>
             {
                 {ConfigDefaultKeys.GlobalChatAnnouncements, "true"},
+                {ConfigDefaultKeys.PleaseWaitMessage, "true"},
                 {ConfigDefaultKeys.OnPlayerSleepEnded, "false"},
                 {ConfigDefaultKeys.OnPlayerConnected, "true"}
             };
@@ -796,6 +844,7 @@ namespace Oxide.Plugins
             public const string ClearRewardsOnWipe = "Wipe Rewards Count on Map Wipe?";
             // Notification Settings
             public const string GlobalChatAnnouncements = "Globally announcment in chat when player voted (true / false)";
+            public const string PleaseWaitMessage = "Enable the 'Please Wait' message when checking voting status?";
             public const string OnPlayerSleepEnded = "Notify player of rewards when they stop sleeping?";
             public const string OnPlayerConnected = "Notify player of rewards when they connect to the server?";
             // Debug Settings
