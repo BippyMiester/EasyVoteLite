@@ -21,10 +21,10 @@ namespace Oxide.Plugins
         // Plugin Metadata
         private const string _PluginName = "EasyVoteLite";
         private const string _PluginAuthor = "BippyMiester";
-        private const string _PluginVersion = "3.0.9";
-        private const string _PluginDescription = "Voting System";
-        
-        // Changelog
+        private const string _PluginVersion = "3.0.10";
+        private const string _PluginDescription = "#1 Rust Server Voting System";
+
+        #region ChangeLog
         /*
          * 3.0.5
          * Removed unused references
@@ -43,8 +43,13 @@ namespace Oxide.Plugins
          * Added option to get rid of the please wait message when checking voting status
          * Completely rewrote how the claim and check voting status is handled. Removed not needed checks and loops.
          * Removed duplicate "Enable Debug" entry in the config
+         * 
+         * 3.0.10
+         * Removed BasePlayerExtension
          */
-        
+        #endregion
+
+
         // Misc Variables
         private IEnumerator coroutine;
 
@@ -104,7 +109,7 @@ namespace Oxide.Plugins
             if (response == "1")
             {
                 HandleVoteCount(player);
-                player.ChatMessage(_lang("ThankYou", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix], player.voteCount().ToString(), site));
+                player.ChatMessage(_lang("ThankYou", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix], DataFile[player.UserIDString].ToString(), site));
                 // Handle Discord Announcements
                 if (_config.Discord[ConfigDefaultKeys.DiscordEnabled].ToBool())
                 {
@@ -116,7 +121,7 @@ namespace Oxide.Plugins
                 {
                     foreach (var p in BasePlayer.activePlayerList)
                     {
-                        p.ChatMessage(_lang("GlobalChatAnnouncements", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix],player.displayName, player.voteCount().ToString()));
+                        p.ChatMessage(_lang("GlobalChatAnnouncements", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix],player.displayName, DataFile[player.UserIDString].ToString()));
                     }
                 }
             }
@@ -268,7 +273,7 @@ namespace Oxide.Plugins
             _Debug("------------------------------");
             _Debug("Method: GiveSubsequentReward");
             _Debug($"Player: {player.displayName}/{player.UserIDString}");
-            _Debug($"Vote Count: {player.voteCount()}");
+            _Debug($"Vote Count: {DataFile[player.UserIDString]}");
             foreach (string rewardCommand in rewardsList)
             {
                 string command = ParseRewardCommand(player, rewardCommand);
@@ -925,13 +930,5 @@ namespace Oxide.Plugins
         }
         #endregion
     }
-    
-    // Create a new BasePlayer Extension
-    public static class BasePlayerExtensionLite
-    {
-        public static object voteCount(this BasePlayer player)
-        {
-            return EasyVoteLite.DataFile[player.UserIDString];
-        }
-    }
+
 }
