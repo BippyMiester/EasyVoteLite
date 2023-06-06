@@ -21,7 +21,7 @@ namespace Oxide.Plugins
         // Plugin Metadata
         private const string _PluginName = "EasyVoteLite";
         private const string _PluginAuthor = "BippyMiester";
-        private const string _PluginVersion = "3.0.10";
+        private const string _PluginVersion = "3.0.11";
         private const string _PluginDescription = "#1 Rust Server Voting System";
 
         #region ChangeLog
@@ -46,6 +46,9 @@ namespace Oxide.Plugins
          * 
          * 3.0.10
          * Removed BasePlayerExtension
+         * 
+         * 3.0.11
+         * Added check to claim webhook for a 2 response code to display an already voted message
          */
         #endregion
 
@@ -124,6 +127,10 @@ namespace Oxide.Plugins
                         p.ChatMessage(_lang("GlobalChatAnnouncements", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix],player.displayName, DataFile[player.UserIDString].ToString()));
                     }
                 }
+            }
+            else if (response == "2")
+            {
+                player.ChatMessage(_lang("AlreadyVoted", player.UserIDString, _config.PluginSettings[ConfigDefaultKeys.Prefix], site));
             }
             else
             {
