@@ -21,7 +21,7 @@ namespace Oxide.Plugins
         // Plugin Metadata
         private const string _PluginName = "EasyVoteLite";
         private const string _PluginAuthor = "BippyMiester";
-        private const string _PluginVersion = "3.0.11";
+        private const string _PluginVersion = "3.0.12";
         private const string _PluginDescription = "#1 Rust Server Voting System";
 
         #region ChangeLog
@@ -49,6 +49,9 @@ namespace Oxide.Plugins
          * 
          * 3.0.11
          * Added check to claim webhook for a 2 response code to display an already voted message
+         * 
+         * 3.0.12
+         * [+] Changed the Vote Sites API section to include a warning not to change the values within that section.
          */
         #endregion
 
@@ -889,7 +892,7 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "Server Voting IDs and Keys")]
             public Dictionary<string, Dictionary<string, string>> Servers;
             
-            [JsonProperty(PropertyName = "Voting Sites API Information")]
+            [JsonProperty(PropertyName = "Voting Sites API Information (DO NOT CHANGE OR DELETE ANYTHING HERE!!!!)")]
             public Dictionary<string, Dictionary<string, string>> VoteSitesAPI;
             
         }
